@@ -12,9 +12,9 @@ line, it is left unchanged.
 It processes all *.php files in the current directory and subdirectories.
 
 Usage:
-  python3 rewrite_includes.py
-  python3 rewrite_includes.py --dry-run
-  python3 rewrite_includes.py --no-backup
+  python3 replace-php-includes.py
+  python3 replace-php-includes.py --dry-run
+  python3 replace-php-includes.py --no-backup
 """
 
 from __future__ import annotations
@@ -29,11 +29,12 @@ from typing import Tuple
 # Matches a full-line statement (optionally with trailing comments/whitespace).
 # Captures: indent, keyword, argument, trailing
 STMT_RE = re.compile(
-    r"""^(\s*)                                  # indent
-         (include|include_once|require|require_once)  # keyword
-         \s*\(\s*(.*?)\s*\)\s*;                  # ( arg );
-         (\s*(?:(?://|#|/\*).*)?)$               # trailing whitespace + comment
-     """,
+    r"""
+    ^(\s*)                                          # indent
+    (include|include_once|require|require_once)      # keyword
+    \s*\(\s*(.*?)\s*\)\s*;                           # ( arg );
+    (\s*(?:(?://|\#|/\*).*)?)$                       # trailing whitespace + comment
+    """,
     re.IGNORECASE | re.VERBOSE,
 )
 
@@ -126,7 +127,9 @@ def line_is_safe_single_statement(original_line: str, state: CommentState) -> Tu
     matches_stmt = m is not None
 
     # Remove comments to see if any extra code exists besides the statement
-    code_wo_comments, new_state = strip_comments_for_code_check(original_line, CommentState(state.in_block))
+    code_wo_comments, new_state = strip_comments_for_code_check(
+        original_line, CommentState(state.in_block)
+    )
 
     # If it doesn't even match the statement form, we cannot rewrite
     if not matches_stmt:
@@ -138,8 +141,9 @@ def line_is_safe_single_statement(original_line: str, state: CommentState) -> Tu
     code = code_wo_comments.strip()
     safe = bool(
         re.match(
-            r"^(?i)(include|include_once|require|require_once)\s*\(\s*.*?\s*\)\s*;\s*$",
+            r"^(include|include_once|require|require_once)\s*\(\s*.*?\s*\)\s*;\s*$",
             code,
+            re.IGNORECASE,
         )
     )
 
