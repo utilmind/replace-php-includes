@@ -9,12 +9,16 @@ Only rewrites lines where the ONLY code on the line is a single include/require
 statement (plus whitespace and PHP comments). If there's any other code on the
 line, it is left unchanged.
 
-It processes all *.php files in the current directory and subdirectories.
+Default behavior:
+  - If no files are provided: process all *.php files in the current directory
+    and subdirectories.
+  - If one or more file paths are provided: process ONLY those files.
 
 Usage:
   python3 replace-php-includes.py
   python3 replace-php-includes.py --dry-run
   python3 replace-php-includes.py --no-backup
+  python3 replace-php-includes.py path/to/a.php b.php
 """
 
 from __future__ import annotations
@@ -23,7 +27,7 @@ import argparse
 import os
 import re
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Iterable, List, Tuple
 
 
 # Matches a full-line statement (optionally with trailing comments/whitespace).
@@ -199,39 +203,79 @@ def process_file(path: str, dry_run: bool, backup: bool) -> Tuple[int, int]:
     return changed, total
 
 
+def iter_php_files_under_current_dir() -> Iterable[str]:
+    """Yield all *.php files under current directory recursively."""
+    for root, _, files in os.walk("."):
+        for name in files:
+            if name.lower().endswith(".php"):
+                yield os.path.join(root, name)
+
+
+def normalize_input_files(paths: List[str]) -> List[str]:
+    """
+    Normalize user-provided file paths:
+    - Keep only existing files
+    - Warn on missing paths
+    """
+    out: List[str] = []
+    for p in paths:
+        norm = os.path.normpath(p)
+        if not os.path.exists(norm):
+            print(f"WARNING: path not found, skipped: {p}")
+            continue
+        if os.path.isdir(norm):
+            print(f"WARNING: directory provided, skipped: {p}")
+            continue
+        out.append(norm)
+    return out
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Rewrite PHP include/require() to include/require without parentheses.")
     parser.add_argument("--dry-run", action="store_true", help="Do not modify files, only report changes.")
     parser.add_argument("--no-backup", action="store_true", help="Do not create .bak files.")
+    parser.add_argument(
+        "files",
+        nargs="*",
+        help="Optional list of PHP files to process. If omitted, all *.php under current directory are processed.",
+    )
     args = parser.parse_args()
 
     dry_run = args.dry_run
     backup = not args.no_backup
 
+    if args.files:
+        targets = normalize_input_files(args.files)
+        # Optional: if user passed a non-php file, still allow it, but warn.
+        for t in targets:
+            if not t.lower().endswith(".php"):
+                print(f"NOTE: processing non-.php file because it was explicitly provided: {t}")
+    else:
+        targets = list(iter_php_files_under_current_dir())
+
     total_files = 0
     total_changed_files = 0
     total_changed_lines = 0
 
-    for root, _, files in os.walk("."):
-        for name in files:
-            if not name.lower().endswith(".php"):
-                continue
-
-            path = os.path.join(root, name)
-            total_files += 1
-
+    for path in targets:
+        total_files += 1
+        try:
             changed_lines, _ = process_file(path, dry_run=dry_run, backup=backup)
-            if changed_lines:
-                total_changed_files += 1
-                total_changed_lines += changed_lines
-                print(f"{path}: changed {changed_lines} line(s)")
+        except OSError as e:
+            print(f"ERROR: {path}: {e}")
+            continue
+
+        if changed_lines:
+            total_changed_files += 1
+            total_changed_lines += changed_lines
+            print(f"{path}: changed {changed_lines} line(s)")
 
     if dry_run:
-        print(f"\nDRY RUN: would change {total_changed_lines} line(s) across {total_changed_files}/{total_files} PHP file(s).")
+        print(f"\nDRY RUN: would change {total_changed_lines} line(s) across {total_changed_files}/{total_files} file(s).")
     else:
-        print(f"\nDone: changed {total_changed_lines} line(s) across {total_changed_files}/{total_files} PHP file(s).")
+        print(f"\nDone: changed {total_changed_lines} line(s) across {total_changed_files}/{total_files} file(s).")
         if backup:
-            print("Backups created as *.php.bak (only for files that actually changed).")
+            print("Backups created as *.bak (only for files that actually changed).")
 
 
 if __name__ == "__main__":
