@@ -155,8 +155,19 @@ def line_is_safe_single_statement(original_line: str, state: CommentState) -> Tu
 
 
 def rewrite_line_if_needed(line: str) -> str:
-    """Rewrite include/require with parentheses into keyword + space + arg + ; keeping trailing comments."""
-    m = STMT_RE.match(line)
+    """Rewrite include/require with parentheses into keyword + space + arg + ; keeping trailing comments AND EOL."""
+    # Preserve original end-of-line exactly
+    eol = ""
+    if line.endswith("\r\n"):
+        eol = "\r\n"
+        core = line[:-2]
+    elif line.endswith("\n"):
+        eol = "\n"
+        core = line[:-1]
+    else:
+        core = line
+
+    m = STMT_RE.match(core)
     if not m:
         return line
 
@@ -165,7 +176,7 @@ def rewrite_line_if_needed(line: str) -> str:
     # Keep original keyword casing as in source (kw is matched as-is by regex)
     # Normalize to: "<indent><kw> <arg>;<trailing>"
     # trailing already includes its leading whitespace (if any)
-    return f"{indent}{kw} {arg};{trailing}"
+    return f"{indent}{kw} {arg};{trailing}{eol}"
 
 
 def process_file(path: str, dry_run: bool, backup: bool) -> Tuple[int, int]:
