@@ -1,0 +1,1 @@
+@py "d:\Utils\replace-php-includes.py" %*
