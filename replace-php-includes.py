@@ -34,10 +34,10 @@ from typing import Iterable, List, Tuple
 # Captures: indent, keyword, argument, trailing
 STMT_RE = re.compile(
     r"""
-    ^(\s*)                                          # indent
+    ^(\s*)                                           # indent
     (include|include_once|require|require_once)      # keyword
     \s*\(\s*(.*?)\s*\)\s*;                           # ( arg );
-    (\s*(?:(?://|\#|/\*).*)?)$                       # trailing whitespace + comment
+    (\s*(?:(?://|\#|/\*).*)?\s*(?:\?>\s*)?)$         # trailing: ws + optional comment + optional ?>
     """,
     re.IGNORECASE | re.VERBOSE,
 )
@@ -142,7 +142,8 @@ def line_is_safe_single_statement(original_line: str, state: CommentState) -> Tu
     # Now check: after stripping comments, the remaining code must be exactly that statement
     # (possibly different spacing/casing, but still only include/require + parentheses + arg + ;)
     # We'll do a lenient regex on the comment-stripped code.
-    code = code_wo_comments.strip()
+    # Allow a closing PHP tag at the end of the line
+    code = re.sub(r"\s*\?>\s*$", "", code)
     safe = bool(
         re.match(
             r"^(include|include_once|require|require_once)\s*\(\s*.*?\s*\)\s*;\s*$",
