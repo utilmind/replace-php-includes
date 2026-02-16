@@ -142,6 +142,7 @@ def line_is_safe_single_statement(original_line: str, state: CommentState) -> Tu
     # Now check: after stripping comments, the remaining code must be exactly that statement
     # (possibly different spacing/casing, but still only include/require + parentheses + arg + ;)
     # We'll do a lenient regex on the comment-stripped code.
+    code = code_wo_comments.strip()
     # Allow a closing PHP tag at the end of the line
     code = re.sub(r"\s*\?>\s*$", "", code)
     safe = bool(
